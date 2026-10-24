@@ -3,3 +3,6 @@ spring:
     name: authorization-server
 server:
   port: 8081
+
+jwt:
+  issuer: mini-oauth-platform
