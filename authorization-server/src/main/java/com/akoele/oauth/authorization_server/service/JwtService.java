@@ -1,5 +1,7 @@
 package com.akoele.oauth.authorization_server.service;
 
+import com.akoele.oauth.authorization_server.crypto.SigningKey;
+import com.akoele.oauth.authorization_server.security.KeyProvider;
 import io.jsonwebtoken.Jwts;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -10,35 +12,55 @@ import java.util.Date;
 
 @Service
 public class JwtService {
-    private final RSAPrivateKey privateKey;
+    private final KeyProvider keyProvider;
     private final String issuer;
 
-    public JwtService(RSAPrivateKey privateKey, @Value("${jwt.issuer:mini-oauth-platform}") String issuer) {
-        this.privateKey = privateKey;
+    public JwtService(
+            KeyProvider keyProvider,
+            @Value("${jwt.issuer:mini-oauth-platform}") String issuer) {
+
+        this.keyProvider = keyProvider;
         this.issuer = issuer;
     }
 
     /**
-     * Génère un JWT signé avec la clé privée RSA.
+     * Génère un JWT signé avec la clé privée RSA active.
      *
-     * @param subject Le sujet du token (ex: l'identifiant de l'utilisateur / username)
-     * @return Le token JWT sous forme de chaîne de caractères (String)
+     * @param subject le sujet du token
+     * @return le JWT signé
      */
-    public String generateToken(String subject){
+    public String generateToken(String subject) {
 
         if (subject == null || subject.trim().isEmpty()) {
-            throw new IllegalArgumentException("Le subject (sujet) du token ne peut pas être null ou vide.");
+            throw new IllegalArgumentException(
+                    "Le subject (sujet) du token ne peut pas être null ou vide."
+            );
         }
-        Instant now = Instant.now();
 
-        Instant expiration = now.plusSeconds(3600); // 1 heure de validité
+        SigningKey activeKey = keyProvider.getActiveKey();
+
+        Instant now = Instant.now();
+        Instant expiration = now.plusSeconds(3600);
 
         return Jwts.builder()
+
+                // Header JWT
+                .header()
+                .keyId(activeKey.kid())
+                .and()
+
+                // Claims
                 .issuer(issuer)
                 .subject(subject)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiration))
-                .signWith(privateKey, Jwts.SIG.RS256)
+
+                // Signature
+                .signWith(
+                        activeKey.privateKey(),
+                        Jwts.SIG.RS256
+                )
+
                 .compact();
     }
 }

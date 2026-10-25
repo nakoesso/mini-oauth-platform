@@ -6,3 +6,4 @@ server:
 
 jwt:
   issuer: mini-oauth-platform
+  active-key: key-1
