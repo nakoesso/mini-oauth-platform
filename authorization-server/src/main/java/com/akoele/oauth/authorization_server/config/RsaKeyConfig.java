@@ -1,5 +1,6 @@
 package com.akoele.oauth.authorization_server.config;
 
+import com.akoele.oauth.authorization_server.crypto.SigningKey;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
@@ -16,28 +17,81 @@ import java.util.Base64;
 public class RsaKeyConfig {
 
     @Bean
-    public RSAPrivateKey loadPrivateKey() throws Exception {
-        byte[] decodedBytes = loadAndDecodePem("keys/private.pem");
-        PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(decodedBytes);
-        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-        return (RSAPrivateKey) keyFactory.generatePrivate(keySpec);
+    public SigningKey key1() throws Exception {
+        return loadSigningKey(
+                "key-1",
+                "keys/key-1-private.pem",
+                "keys/key-1-public.pem"
+        );
     }
 
     @Bean
-    public RSAPublicKey loadPublicKey() throws Exception {
-        byte[] decodedBytes = loadAndDecodePem("keys/public.pem");
-        X509EncodedKeySpec keySpec = new X509EncodedKeySpec(decodedBytes);
-        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+    public SigningKey key2() throws Exception {
+        return loadSigningKey(
+                "key-2",
+                "keys/key-2-private.pem",
+                "keys/key-2-public.pem"
+        );
+    }
+
+    private SigningKey loadSigningKey(
+            String kid,
+            String privateKeyPath,
+            String publicKeyPath) throws Exception {
+
+        RSAPrivateKey privateKey = loadPrivateKey(privateKeyPath);
+        RSAPublicKey publicKey = loadPublicKey(publicKeyPath);
+
+        return new SigningKey(
+                kid,
+                privateKey,
+                publicKey
+        );
+    }
+
+    private RSAPrivateKey loadPrivateKey(String privateKeyPath)
+            throws Exception {
+
+        byte[] decodedBytes = loadAndDecodePem(privateKeyPath);
+
+        PKCS8EncodedKeySpec keySpec =
+                new PKCS8EncodedKeySpec(decodedBytes);
+
+        KeyFactory keyFactory =
+                KeyFactory.getInstance("RSA");
+
+        return (RSAPrivateKey) keyFactory.generatePrivate(keySpec);
+    }
+
+    private RSAPublicKey loadPublicKey(String publicKeyPath)
+            throws Exception {
+
+        byte[] decodedBytes = loadAndDecodePem(publicKeyPath);
+
+        X509EncodedKeySpec keySpec =
+                new X509EncodedKeySpec(decodedBytes);
+
+        KeyFactory keyFactory =
+                KeyFactory.getInstance("RSA");
+
         return (RSAPublicKey) keyFactory.generatePublic(keySpec);
     }
 
     /**
-     * Méthode utilitaire privée pour lire un fichier PEM depuis le classpath,
-     * le nettoyer et retourner les bytes décodés en Base64.
+     * Lit un PEM depuis le classpath et retourne
+     * les données décodées Base64.
      */
-    private byte[] loadAndDecodePem(String classpathLocation) throws Exception {
-        ClassPathResource resource = new ClassPathResource(classpathLocation);
-        String pemContent = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+    private byte[] loadAndDecodePem(String classpathLocation)
+            throws Exception {
+
+        ClassPathResource resource =
+                new ClassPathResource(classpathLocation);
+
+        String pemContent =
+                new String(
+                        resource.getInputStream().readAllBytes(),
+                        StandardCharsets.UTF_8
+                );
 
         String cleanedPem = pemContent
                 .replace("-----BEGIN PRIVATE KEY-----", "")
