@@ -5,10 +5,14 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
+import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
@@ -17,7 +21,7 @@ import java.util.Base64;
 public class RsaKeyConfig {
 
     @Bean
-    public SigningKey key1() throws Exception {
+    public SigningKey key1() {
         return loadSigningKey(
                 "key-1",
                 "keys/key-1-private.pem",
@@ -26,7 +30,7 @@ public class RsaKeyConfig {
     }
 
     @Bean
-    public SigningKey key2() throws Exception {
+    public SigningKey key2() {
         return loadSigningKey(
                 "key-2",
                 "keys/key-2-private.pem",
@@ -37,7 +41,7 @@ public class RsaKeyConfig {
     private SigningKey loadSigningKey(
             String kid,
             String privateKeyPath,
-            String publicKeyPath) throws Exception {
+            String publicKeyPath) {
 
         RSAPrivateKey privateKey = loadPrivateKey(privateKeyPath);
         RSAPublicKey publicKey = loadPublicKey(publicKeyPath);
@@ -49,61 +53,57 @@ public class RsaKeyConfig {
         );
     }
 
-    private RSAPrivateKey loadPrivateKey(String privateKeyPath)
-            throws Exception {
-
+    private RSAPrivateKey loadPrivateKey(String privateKeyPath) {
         byte[] decodedBytes = loadAndDecodePem(privateKeyPath);
-
-        PKCS8EncodedKeySpec keySpec =
-                new PKCS8EncodedKeySpec(decodedBytes);
-
-        KeyFactory keyFactory =
-                KeyFactory.getInstance("RSA");
-
-        return (RSAPrivateKey) keyFactory.generatePrivate(keySpec);
+        try {
+            PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(decodedBytes);
+            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+            return (RSAPrivateKey) keyFactory.generatePrivate(keySpec);
+        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+            throw new IllegalStateException("Failed to generate RSA private key from path: " + privateKeyPath, e);
+        }
     }
 
-    private RSAPublicKey loadPublicKey(String publicKeyPath)
-            throws Exception {
-
+    private RSAPublicKey loadPublicKey(String publicKeyPath) {
         byte[] decodedBytes = loadAndDecodePem(publicKeyPath);
-
-        X509EncodedKeySpec keySpec =
-                new X509EncodedKeySpec(decodedBytes);
-
-        KeyFactory keyFactory =
-                KeyFactory.getInstance("RSA");
-
-        return (RSAPublicKey) keyFactory.generatePublic(keySpec);
+        try {
+            X509EncodedKeySpec keySpec = new X509EncodedKeySpec(decodedBytes);
+            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+            return (RSAPublicKey) keyFactory.generatePublic(keySpec);
+        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+            throw new IllegalStateException("Failed to generate RSA public key from path: " + publicKeyPath, e);
+        }
     }
 
     /**
-     * Lit un PEM depuis le classpath et retourne
-     * les données décodées Base64.
+     * Lit un PEM depuis le classpath et retourne les données décodées Base64.
      */
-    private byte[] loadAndDecodePem(String classpathLocation)
-            throws Exception {
+    private byte[] loadAndDecodePem(String classpathLocation) {
+        ClassPathResource resource = new ClassPathResource(classpathLocation);
 
-        ClassPathResource resource =
-                new ClassPathResource(classpathLocation);
+        // Utilisation d'un try-with-resources pour fermer automatiquement l'InputStream
+        try (InputStream inputStream = resource.getInputStream()) {
+            String pemContent = new String(
+                    inputStream.readAllBytes(),
+                    StandardCharsets.UTF_8
+            );
 
-        String pemContent =
-                new String(
-                        resource.getInputStream().readAllBytes(),
-                        StandardCharsets.UTF_8
-                );
+            String cleanedPem = pemContent
+                    .replace("-----BEGIN PRIVATE KEY-----", "")
+                    .replace("-----END PRIVATE KEY-----", "")
+                    .replace("-----BEGIN PUBLIC KEY-----", "")
+                    .replace("-----END PUBLIC KEY-----", "")
+                    .replace("-----BEGIN RSA PRIVATE KEY-----", "")
+                    .replace("-----END RSA PRIVATE KEY-----", "")
+                    .replace("-----BEGIN RSA PUBLIC KEY-----", "")
+                    .replace("-----END RSA PUBLIC KEY-----", "")
+                    .replaceAll("\\s+", "");
 
-        String cleanedPem = pemContent
-                .replace("-----BEGIN PRIVATE KEY-----", "")
-                .replace("-----END PRIVATE KEY-----", "")
-                .replace("-----BEGIN PUBLIC KEY-----", "")
-                .replace("-----END PUBLIC KEY-----", "")
-                .replace("-----BEGIN RSA PRIVATE KEY-----", "")
-                .replace("-----END RSA PRIVATE KEY-----", "")
-                .replace("-----BEGIN RSA PUBLIC KEY-----", "")
-                .replace("-----END RSA PUBLIC KEY-----", "")
-                .replaceAll("\\s+", "");
-
-        return Base64.getDecoder().decode(cleanedPem);
+            return Base64.getDecoder().decode(cleanedPem);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to read PEM file from classpath: " + classpathLocation, e);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("Failed to decode Base64 content for PEM file: " + classpathLocation, e);
+        }
     }
 }

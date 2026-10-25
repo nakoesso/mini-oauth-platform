@@ -83,7 +83,7 @@ public class JwtServiceTest {
     @Test
     void generateToken_containsExpectedClaims() {
 
-        String subject = "john.doe";
+        String subject = "akoele";
 
         Instant beforeGeneration = Instant.now();
 
@@ -134,33 +134,39 @@ public class JwtServiceTest {
     @Test
     void generateToken_containsExpectedKidInHeader() throws Exception {
 
-        String token = jwtService.generateToken("john.doe");
+        String token = jwtService.generateToken("akoele");
 
-        String encodedHeader = token.split("\\.")[0];
+        String[] parts = token.split("\\.");
 
-        String jsonHeader =
-                new String(
-                        Base64.getUrlDecoder()
-                                .decode(encodedHeader),
-                        StandardCharsets.UTF_8
-                );
+        String encodedHeader = parts[0];
+
+        String headerJson = new String(
+                Base64.getUrlDecoder().decode(encodedHeader),
+                StandardCharsets.UTF_8
+        );
 
         ObjectMapper objectMapper = new ObjectMapper();
 
         JsonNode header =
-                objectMapper.readTree(jsonHeader);
+                objectMapper.readTree(headerJson);
 
+        // Vérification du Key ID (kid) actif
         assertEquals(
                 activeKid,
-                header.get("kid").asText(),
-                "Le kid du header JWT est incorrect"
+                header.get("kid").asText()
+        );
+
+        // Vérification de l'algorithme de signature (alg)
+        assertEquals(
+                "RS256",
+                header.get("alg").asText()
         );
     }
 
     @Test
     void generateToken_signatureCanBeVerifiedWithPublicKey() {
 
-        String token = jwtService.generateToken("john.doe");
+        String token = jwtService.generateToken("akoele");
 
         Claims claims = Jwts.parser()
                 .verifyWith(publicKey)
@@ -169,7 +175,7 @@ public class JwtServiceTest {
                 .getPayload();
 
         assertEquals(
-                "john.doe",
+                "akoele",
                 claims.getSubject()
         );
     }
@@ -191,5 +197,4 @@ public class JwtServiceTest {
                 "Une IllegalArgumentException était attendue"
         );
     }
-
 }

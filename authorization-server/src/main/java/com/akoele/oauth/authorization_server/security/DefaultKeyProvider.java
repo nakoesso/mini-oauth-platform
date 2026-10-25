@@ -24,19 +24,22 @@ public class DefaultKeyProvider implements KeyProvider {
         this.signingKeys = signingKeys.stream()
                 .collect(Collectors.toMap(
                         SigningKey::kid,
-                        Function.identity()
+                        Function.identity(),
+                        (existing, replacement) -> {
+                            throw new IllegalStateException(
+                                    "Clé en double détectée pour le kid : " + existing.kid()
+                            );
+                        }
                 ));
     }
 
     @Override
     public SigningKey getActiveKey() {
-
         SigningKey signingKey = signingKeys.get(activeKid);
 
         if (signingKey == null) {
             throw new IllegalStateException(
-                    "Aucune clé configurée avec le kid : "
-                            + activeKid
+                    "Aucune clé configurée avec le kid : " + activeKid
             );
         }
 
